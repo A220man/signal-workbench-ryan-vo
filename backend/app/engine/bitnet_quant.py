@@ -27,6 +27,10 @@ def quantize_weights_absmean(weights: np.ndarray) -> Tuple[np.ndarray, float]:
     rounded = np.round(scaled)
     ternary = np.clip(rounded, -1, 1).astype(np.int8)
 
+    # If all weights quantized to zero, gamma should be 1.0 for identity
+    if np.all(ternary == 0):
+        gamma = 1.0
+
     return ternary, gamma
 
 
@@ -55,6 +59,10 @@ def quantize_activations_absmax(
     rounded = np.round(scaled)
     quantized = np.clip(rounded, -q_max - 1, q_max).astype(np.int8)
 
+    # If all activations quantized to zero, alpha should be 1.0
+    if np.all(quantized == 0):
+        alpha = 1.0
+
     return quantized, alpha
 
 
@@ -62,14 +70,14 @@ def ternary_linear_forward(
     x: np.ndarray,
     ternary_weights: np.ndarray,
     gamma: float,
-    quantize_inputs: bool = True,
+    quantize_activations: bool = True,
 ) -> np.ndarray:
     """Execute forward linear layer with ternary weights and optional 8-bit activations.
 
     y = x @ W^T
     With ternary weights, inner products become pure accumulations (add/subtract).
     """
-    if quantize_inputs:
+    if quantize_activations:
         x_q, alpha = quantize_activations_absmax(x, num_bits=8)
         # Integer accumulation: int8 x int8 -> int32
         # x_q shape: [..., in_features], ternary_weights shape: [out_features, in_features]
@@ -90,7 +98,14 @@ def compute_quantization_stats(
     """Compute statistics including sparsity, mean squared error, and weight distribution."""
     total_elements = float(ternary_weights.size)
     if total_elements == 0:
-        return {"sparsity": 0.0, "mse": 0.0, "neg_ones": 0.0, "zeros": 0.0, "pos_ones": 0.0}
+        return {
+            "sparsity": 0.0,
+            "mse": 0.0,
+            "weight_distribution_neg": 0.0,
+            "weight_distribution_zero": 0.0,
+            "weight_distribution_pos": 0.0,
+            "gamma": gamma,
+        }
 
     neg_ones = float(np.sum(ternary_weights == -1)) / total_elements
     zeros = float(np.sum(ternary_weights == 0)) / total_elements
@@ -102,8 +117,8 @@ def compute_quantization_stats(
     return {
         "sparsity": zeros,
         "mse": mse,
-        "neg_ones_ratio": neg_ones,
-        "zeros_ratio": zeros,
-        "pos_ones_ratio": pos_ones,
-        "scaling_factor_gamma": gamma,
+        "weight_distribution_neg": neg_ones,
+        "weight_distribution_zero": zeros,
+        "weight_distribution_pos": pos_ones,
+        "gamma": gamma,
     }

@@ -13,6 +13,9 @@ def get_db_path() -> str:
     url = settings.DATABASE_URL
     if url.startswith("sqlite:///"):
         return url.replace("sqlite:///", "")
+    if url.startswith("sqlite://"):
+        # Handle sqlite:///file:... URIs
+        return url.replace("sqlite://", "")
     return "workbench.db"
 
 

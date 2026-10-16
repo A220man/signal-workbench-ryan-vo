@@ -22,8 +22,9 @@ def silu(x: np.ndarray) -> np.ndarray:
     Erroneously used in early llama.cpp BitNet ports (Issue #588),
     causing activation degradation into the sub-norm and perplexity regression (99.8 vs 17.1).
     """
-    # Numerically stable sigmoid
-    sigmoid = 1.0 / (1.0 + np.exp(-np.clip(x, -50.0, 50.0)))
+    # Numerically stable sigmoid with aggressive clipping for large negatives
+    x_clipped = np.clip(x, -20.0, 50.0)
+    sigmoid = 1.0 / (1.0 + np.exp(-x_clipped))
     return x * sigmoid
 
 

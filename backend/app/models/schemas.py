@@ -20,10 +20,9 @@ class ModelInfo(BaseModel):
 
 class ModelLoadRequest(BaseModel):
     model_id: str = Field(..., description="Unique model identifier to register or activate")
-    name: str = Field(..., description="Display name for model")
-    architecture: str = Field("BitNet-b1.58-2B-4T", description="BitNet architecture variant")
-    parameter_count: int = Field(2_000_000_000, description="Total parameters")
-    quantization_format: str = Field("i2_s", description="Quantization mode: i2_s or tl1")
+    model_path: str = Field(..., description="Filesystem path to model weights")
+    quantization: str = Field("i2_s", description="Quantization mode: i2_s or tl1")
+    context_length: int = Field(2048, ge=512, le=131072, description="Context window size")
     activation_function: str = Field("relu_sqr", description="Activation op: relu_sqr or silu")
 
 
@@ -52,8 +51,8 @@ class InferenceResponse(BaseModel):
 
 class BenchmarkRunRequest(BaseModel):
     model_name: str = Field("BitNet-b1.58-2B-4T", description="Target model")
-    dataset: str = Field("wikitext-2-raw", description="Validation corpus")
-    token_count: int = Field(512, ge=64, le=4096, description="Token length to evaluate")
+    dataset: str = Field("wikitext-2", description="Validation corpus")
+    num_tokens: int = Field(512, ge=64, le=4096, description="Token length to evaluate")
     activation_tested: str = Field("relu_sqr", description="Activation to test: relu_sqr or silu")
 
 
@@ -63,11 +62,11 @@ class BenchmarkRunResponse(BaseModel):
     dataset: str
     tokens_evaluated: int
     activation_tested: str
-    measured_perplexity: float
+    perplexity: float
     mean_loss: float
     latency_ms: float
-    memory_peak_mb: float
-    distribution: Dict[str, float]
+    peak_memory_mb: float
+    weight_distribution: Dict[str, float]
     created_at: str
 
 
@@ -80,26 +79,21 @@ class SizingRequest(BaseModel):
 
 class SizingResponse(BaseModel):
     model_scale: str
-    parameter_count: int
     fp16_weight_gb: float
     ternary_weight_gb: float
     kv_cache_gb: float
     total_memory_required_gb: float
-    memory_reduction_pct: float
-    fits_in_device_memory: bool
-    estimated_tokens_per_sec: float
+    reduction_pct: float
+    fits: bool
+    estimated_tps: float
     notes: List[str]
 
 
 class CompilerDiagnosticResponse(BaseModel):
     cpu_vendor: str
-    cpu_architecture: str
-    cpu_cores: int
-    simd_features: Dict[str, bool]
-    clang_version_detected: Optional[str]
-    cmake_version_detected: Optional[str]
-    const_correctness_pass: bool
-    recommended_build_flags: List[str]
+    cpu_features: Dict[str, bool]
+    clang_version: Optional[str]
+    cmake_version: Optional[str]
     known_issues_addressed: List[Dict[str, Any]]
 
 
@@ -110,10 +104,9 @@ class LLMAdvisoryRequest(BaseModel):
 
 class LLMAdvisoryResponse(BaseModel):
     topic: str
-    provider: str
-    model: str
-    advisory_text: str
-    grounded_metrics: Dict[str, Any]
+    summary: str
+    details: Dict[str, Any]
+    references: List[str]
     disclaimer: str
 
 

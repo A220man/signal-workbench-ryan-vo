@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Runtime configuration for Signal Workbench."""
     APP_NAME: str = "Signal Workbench"
-    VERSION: str = "1.0.0"
+    VERSION: str = "1.1.0"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     HOST: str = os.getenv("HOST", "127.0.0.1")
     PORT: int = int(os.getenv("PORT", "8000"))

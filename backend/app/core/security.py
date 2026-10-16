@@ -88,7 +88,7 @@ async def get_current_user(
                 user_id="demo-user-1",
                 username="demo-operator",
                 email="operator@local.demo",
-                roles=["operator", "viewer"],
+                roles=["admin", "operator", "viewer"],
             )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
