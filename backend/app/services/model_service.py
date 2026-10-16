@@ -20,18 +20,16 @@ class InMemoryModelSession:
     def __init__(
         self,
         model_id: str,
-        name: str,
-        architecture: str,
-        parameter_count: int,
-        quant_format: str,
-        activation: str,
+        model_path: str,
+        quantization: str,
+        context_length: int,
+        activation_function: str,
     ):
         self.model_id = model_id
-        self.name = name
-        self.architecture = architecture
-        self.parameter_count = parameter_count
-        self.quant_format = quant_format
-        self.activation = activation
+        self.model_path = model_path
+        self.quantization = quantization
+        self.context_length = context_length
+        self.activation_function = activation_function
         self.loaded_at = dt.datetime.now(dt.timezone.utc).isoformat()
         self.inference_count = 0
         self.total_tokens_generated = 0
@@ -55,11 +53,10 @@ def register_and_load_model(req: ModelLoadRequest, user_id: str) -> ModelInfo:
     """Load a 1-bit model into system RAM and record in persistent storage."""
     session = InMemoryModelSession(
         model_id=req.model_id,
-        name=req.name,
-        architecture=req.architecture,
-        parameter_count=req.parameter_count,
-        quant_format=req.quantization_format,
-        activation=req.activation_function,
+        model_path=req.model_path,
+        quantization=req.quantization,
+        context_length=req.context_length,
+        activation_function=req.activation_function,
     )
     _ACTIVE_SESSIONS[req.model_id] = session
 
@@ -81,10 +78,10 @@ def register_and_load_model(req: ModelLoadRequest, user_id: str) -> ModelInfo:
             """,
             (
                 req.model_id,
-                req.name,
-                req.architecture,
-                req.parameter_count,
-                req.quantization_format,
+                req.model_id,  # name defaults to model_id
+                "BitNet-b1.58-2B-4T",  # default architecture
+                2_000_000_000,  # default parameter count
+                req.quantization,
                 req.activation_function,
                 "loaded_in_ram",
                 session.resident_memory_bytes,
@@ -101,18 +98,18 @@ def register_and_load_model(req: ModelLoadRequest, user_id: str) -> ModelInfo:
         user_id=user_id,
         status="success",
         details={
-            "architecture": req.architecture,
-            "quantization": req.quantization_format,
+            "quantization": req.quantization,
+            "activation_function": req.activation_function,
             "memory_mb": session.resident_memory_bytes / (1024 * 1024),
         },
     )
 
     return ModelInfo(
         id=req.model_id,
-        name=req.name,
-        architecture=req.architecture,
-        parameter_count=req.parameter_count,
-        quantization_format=req.quantization_format,
+        name=req.model_id,
+        architecture="BitNet-b1.58-2B-4T",
+        parameter_count=2_000_000_000,
+        quantization_format=req.quantization,
         activation_function=req.activation_function,
         status="loaded_in_ram",
         memory_bytes=session.resident_memory_bytes,
@@ -155,19 +152,10 @@ def run_inference(req: InferenceRequest, user_id: str) -> InferenceResponse:
 
     session = _ACTIVE_SESSIONS.get(req.model_id)
     if not session:
-        # Auto-warm default session if model exists in DB
-        session = InMemoryModelSession(
-            model_id=req.model_id,
-            name="BitNet In-Memory Instance",
-            architecture="BitNet-b1.58-2B-4T",
-            parameter_count=2_000_000_000,
-            quant_format="i2_s",
-            activation="relu_sqr",
-        )
-        _ACTIVE_SESSIONS[req.model_id] = session
+        raise KeyError(f"Model {req.model_id} not loaded in memory. Load it first via POST /api/models")
 
     # Determine activation function to use
-    act_to_use = req.activation_override or session.activation
+    act_to_use = req.activation_override or session.activation_function
 
     # Compute prompt tokens and generate completion tokens
     prompt_tokens = max(1, len(req.prompt.split()))
@@ -176,7 +164,7 @@ def run_inference(req: InferenceRequest, user_id: str) -> InferenceResponse:
     # Perform matrix operations through ternary forward engine
     # Simulating token embedding vector pass through ternary linear layer
     emb = np.ones((1, 64), dtype=np.float32)
-    _ = ternary_linear_forward(emb, session.ternary_w, session.gamma, quantize_inputs=True)
+    _ = ternary_linear_forward(emb, session.ternary_w, session.gamma, quantize_activations=True)
 
     elapsed_s = max(time.perf_counter() - start_time, 0.002)
     latency_ms = round(elapsed_s * 1000.0, 2)
@@ -210,7 +198,7 @@ def run_inference(req: InferenceRequest, user_id: str) -> InferenceResponse:
                 completion_tokens,
                 latency_ms,
                 tps,
-                session.quant_format,
+                session.quantization,
                 act_to_use,
                 user_id,
                 now_utc,
@@ -230,7 +218,7 @@ def run_inference(req: InferenceRequest, user_id: str) -> InferenceResponse:
         completion_tokens=completion_tokens,
         latency_ms=latency_ms,
         tokens_per_sec=tps,
-        quant_type=session.quant_format,
+        quant_type=session.quantization,
         activation_used=act_to_use,
         created_at=now_utc,
     )

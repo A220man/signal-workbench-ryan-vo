@@ -117,13 +117,12 @@ def calculate_memory_and_throughput(
 
     return SizingResponse(
         model_scale=model_scale,
-        parameter_count=params,
         fp16_weight_gb=fp16_weight_gb,
         ternary_weight_gb=ternary_weight_gb,
         kv_cache_gb=kv_cache_gb,
         total_memory_required_gb=total_memory_required_gb,
-        memory_reduction_pct=reduction_pct,
-        fits_in_device_memory=fits,
-        estimated_tokens_per_sec=estimated_tps,
+        reduction_pct=reduction_pct,
+        fits=fits,
+        estimated_tps=estimated_tps,
         notes=notes,
     )

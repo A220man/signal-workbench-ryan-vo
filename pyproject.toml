@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "signal-workbench-ryan-vo"
-version = "1.0.0"
+version = "1.1.0"
 description = "Inference framework and calibration workbench for 1-bit BitNet b1.58 LLMs"
 readme = "README.md"
 requires-python = ">=3.12"

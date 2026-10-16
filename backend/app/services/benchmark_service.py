@@ -18,7 +18,7 @@ def run_benchmark(req: BenchmarkRunRequest, user_id: str) -> BenchmarkRunRespons
 
     # Run perplexity simulation grounded in Issue #588 empirical findings
     res = evaluate_synthetic_perplexity(
-        num_tokens=req.token_count,
+        num_tokens=req.num_tokens,
         activation=req.activation_tested,
     )
 
@@ -27,11 +27,10 @@ def run_benchmark(req: BenchmarkRunRequest, user_id: str) -> BenchmarkRunRespons
 
     # Synthetic weight distribution for BitNet b1.58
     # Typically ~45% zero, 27.5% -1, 27.5% +1
-    distribution = {
-        "neg_ones_pct": 27.5,
-        "zeros_pct": 45.0,
-        "pos_ones_pct": 27.5,
-        "sparsity": 0.45,
+    weight_distribution = {
+        "neg_pct": 27.5,
+        "zero_pct": 45.0,
+        "pos_pct": 27.5,
     }
 
     run_id = f"bench-{uuid.uuid4().hex[:12]}"
@@ -50,13 +49,13 @@ def run_benchmark(req: BenchmarkRunRequest, user_id: str) -> BenchmarkRunRespons
                 run_id,
                 req.model_name,
                 req.dataset,
-                req.token_count,
+                req.num_tokens,
                 req.activation_tested,
                 res["perplexity"],
                 res["mean_loss"],
                 latency_ms,
                 peak_mb,
-                json.dumps(distribution),
+                json.dumps(weight_distribution),
                 user_id,
                 now_utc,
             ),
@@ -80,13 +79,13 @@ def run_benchmark(req: BenchmarkRunRequest, user_id: str) -> BenchmarkRunRespons
         id=run_id,
         model_name=req.model_name,
         dataset=req.dataset,
-        tokens_evaluated=req.token_count,
+        tokens_evaluated=req.num_tokens,
         activation_tested=req.activation_tested,
-        measured_perplexity=res["perplexity"],
+        perplexity=res["perplexity"],
         mean_loss=res["mean_loss"],
         latency_ms=latency_ms,
-        memory_peak_mb=peak_mb,
-        distribution=distribution,
+        peak_memory_mb=peak_mb,
+        weight_distribution=weight_distribution,
         created_at=now_utc,
     )
 
@@ -107,11 +106,11 @@ def list_benchmark_history(limit: int = 20) -> List[BenchmarkRunResponse]:
                 dataset=r["dataset"],
                 tokens_evaluated=r["tokens_evaluated"],
                 activation_tested=r["activation_tested"],
-                measured_perplexity=r["measured_perplexity"],
+                perplexity=r["measured_perplexity"],
                 mean_loss=r["mean_loss"],
                 latency_ms=r["latency_ms"],
-                memory_peak_mb=r["memory_peak_mb"],
-                distribution=json.loads(r["details_json"]) if r["details_json"] else {},
+                peak_memory_mb=r["memory_peak_mb"],
+                weight_distribution=json.loads(r["details_json"]) if r["details_json"] else {},
                 created_at=r["created_at"],
             )
         )

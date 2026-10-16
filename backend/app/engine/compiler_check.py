@@ -12,9 +12,9 @@ from app.models.schemas import CompilerDiagnosticResponse
 def detect_cpu_features() -> Dict[str, bool]:
     """Inspect /proc/cpuinfo or platform indicators to identify SIMD instructions."""
     features = {
-        "avx512": False,
         "avx2": False,
-        "fma": False,
+        "avx512f": False,
+        "avx512_vnni": False,
         "neon": False,
         "sse4_2": False,
     }
@@ -29,9 +29,9 @@ def detect_cpu_features() -> Dict[str, bool]:
                         flags_line = line
                         break
 
-                features["avx512"] = "avx512" in flags_line or "avx512f" in flags_line
                 features["avx2"] = "avx2" in flags_line
-                features["fma"] = "fma" in flags_line
+                features["avx512f"] = "avx512f" in flags_line
+                features["avx512_vnni"] = "avx512_vnni" in flags_line
                 features["neon"] = "neon" in flags_line or "asimd" in flags_line
                 features["sse4_2"] = "sse4_2" in flags_line
     except Exception:
@@ -73,19 +73,18 @@ def detect_toolchain_versions() -> Dict[str, str | None]:
 def run_compiler_diagnostics() -> CompilerDiagnosticResponse:
     """Run full diagnostic suite addressing build and compatibility issues (Issues 180, 480, 334, 185)."""
     cpu_arch = platform.machine()
-    cpu_cores = os.cpu_count() or 1
     cpu_vendor = platform.processor() or "x86_64 Compatible"
 
-    simd = detect_cpu_features()
+    cpu_features = detect_cpu_features()
     toolchain = detect_toolchain_versions()
 
     # Recommended compile flags based on SIMD availability
     flags = ["-O3"]
-    if simd["avx512"]:
+    if cpu_features["avx512f"]:
         flags.append("-mavx512f -mavx512bw -mavx512vl")
-    elif simd["avx2"]:
+    elif cpu_features["avx2"]:
         flags.append("-mavx2 -mfma")
-    elif simd["neon"]:
+    elif cpu_features["neon"]:
         flags.append("-march=armv8-a+simd")
 
     # Addressed user issues from repository history
@@ -118,12 +117,8 @@ def run_compiler_diagnostics() -> CompilerDiagnosticResponse:
 
     return CompilerDiagnosticResponse(
         cpu_vendor=cpu_vendor,
-        cpu_architecture=cpu_arch,
-        cpu_cores=cpu_cores,
-        simd_features=simd,
-        clang_version_detected=toolchain["clang"],
-        cmake_version_detected=toolchain["cmake"],
-        const_correctness_pass=True,
-        recommended_build_flags=flags,
+        cpu_features=cpu_features,
+        clang_version=toolchain["clang"],
+        cmake_version=toolchain["cmake"],
         known_issues_addressed=issues,
     )
