@@ -1,3 +1,5 @@
+import { getStoredAccessToken } from "../auth/oidc";
+
 /** HTTP client for the Signal Workbench API, derived from backend routes. */
 import type {
   AuditLogEntry,
@@ -31,13 +33,20 @@ export class ApiClient {
     this.token = token;
   }
 
+  private getAuthToken(): string | null {
+    // Priority: explicit token set via setToken, then OIDC token from memory
+    if (this.token) return this.token;
+    return getStoredAccessToken();
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(init.headers as Record<string, string> | undefined),
     };
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
+    const token = this.getAuthToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
 
     const response = await fetch(`${API_BASE}${path}`, { ...init, headers });

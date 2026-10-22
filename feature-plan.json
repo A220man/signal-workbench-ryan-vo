@@ -1,1 +1,16 @@
-{"schema_version":1,"current_feature":"backend-auth-security-hardening","features":[{"id":"backend-auth-security-hardening","title":"Replace placeholder auth with proper OIDC role-based authorization","status":"done","acceptance":["All endpoints use core/security.py get_current_user and require_role","Demo mode returns admin+operator+viewer roles for full access","Production mode requires valid JWT with correct issuer and role","No TODO/FIXME markers remain in main.py","Preflight passes with no unfinished code","125 backend tests pass"],"implementation":["backend/app/main.py","backend/app/core/security.py","backend/app/services/llm_client.py"],"tests":["backend/tests/test_security.py"]},{"id":"frontend-spa","title":"Complete frontend SPA with typed API client and core workflows","status":"done","acceptance":["React + TypeScript + Vite app builds and passes typecheck","Typed API client derived from backend routes","Dashboard, Models, Inference, Benchmarks, Sizing pages","Loading, error, and empty states on all pages","11 frontend tests pass (3 test files)","npm run build succeeds"],"implementation":["frontend/src/main.tsx","frontend/src/App.tsx","frontend/src/api/client.ts","frontend/src/api/types.ts","frontend/src/components/Layout.tsx","frontend/src/components/LoadingState.tsx","frontend/src/components/ErrorState.tsx","frontend/src/components/EmptyState.tsx","frontend/src/pages/DashboardPage.tsx","frontend/src/pages/ModelsPage.tsx","frontend/src/pages/InferencePage.tsx","frontend/src/pages/BenchmarksPage.tsx","frontend/src/pages/SizingPage.tsx","frontend/src/styles.css","frontend/src/setupTests.ts","frontend/src/vite-env.d.ts"],"tests":["frontend/src/tests/ApiClient.test.ts","frontend/src/tests/Dashboard.test.tsx","frontend/src/tests/Models.test.tsx"]},{"id":"llm-advisory-implement","title":"Implement real LLM advisory client with provider adapters and fallback","status":"done","acceptance":["OpenAI-compatible, Anthropic, and Gemini httpx adapters","Bounded 30s timeout with redacted errors","Falls back to grounded response when LLM_BASE_URL not configured","Audits advisory requests","No real network calls in CI tests"],"implementation":["backend/app/services/llm_client.py"],"tests":["backend/tests/test_api.py::TestAdvisoryEndpoint"]},{"id":"ci-frontend","title":"Frontend CI pipeline passes (build + tests)","status":"done","acceptance":["npm ci, npm test, npm run build all succeed","Docker frontend build produces production image"],"implementation":["frontend/src/",".github/workflows/ci.yml"],"tests":["frontend/src/tests/"]},{"id":"future-oidc-pkce-client","title":"SPA OIDC PKCE login flow with bearer token management","status":"planned","acceptance":["Authorization code + PKCE flow via Keycloak","Access token stored in memory only, never localStorage","State + nonce validation on callback"],"implementation":[],"tests":[]},{"id":"future-jwt-signature-validation","title":"Full JWT signature validation via JWKS discovery","status":"planned","acceptance":["Validate token signature via Keycloak JWKS endpoint","Check aud (audience) claim","Reject expired tokens"],"implementation":[],"tests":[]}]}
+{
+  "schema_version": 1,
+  "current_feature": "continue-implementation",
+  "features": [
+    {
+      "id": "continue-implementation",
+      "title": "Continue implementation and resolve known failures",
+      "status": "in_progress",
+      "acceptance": [
+        "Run checks, fix failures, and implement the next planned feature"
+      ],
+      "implementation": [],
+      "tests": []
+    }
+  ]
+}
