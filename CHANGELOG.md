@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.0 — work-in-progress checkpoint
+
+Partial code published for continued development. Known issues: STATUS.md.
+
 ## 1.1.0 — work-in-progress checkpoint
 
 Partial code published for continued development. Known issues: STATUS.md.
@@ -28,3 +32,24 @@ Partial code published for continued development. Known issues: STATUS.md.
 - Backend: 125 tests passed
 - Frontend: 11 tests passed (3 test files), `npm run build` succeeds
 - Preflight: no missing files, source budget OK (116,367 bytes), no unfinished code markers
+
+## 1.1.0 — SPA OIDC PKCE login flow
+
+### Added
+- **OIDC PKCE Client**: `frontend/src/auth/oidc.ts` with Authorization Code + PKCE flow, S256 challenge generation, sessionStorage for verifier/state, in-memory token storage (never localStorage), automatic token refresh via refresh_token.
+- **Auth Context**: `frontend/src/auth/AuthContext.tsx` React context for authentication state management with login/logout/refresh methods.
+- **Login Page**: `frontend/src/auth/LoginPage.tsx` initiates PKCE flow and redirects to Keycloak.
+- **Callback Page**: `frontend/src/auth/CallbackPage.tsx` handles authorization code redirect, validates state/nonce, exchanges code for tokens.
+- **Protected Routes**: React Router integration with `ProtectedRoute` wrapper that redirects to `/login` when unauthenticated in production mode; demo mode bypasses auth for local development.
+- **API Client Integration**: Updated `frontend/src/api/client.ts` to automatically include Bearer token from OIDC memory store.
+
+### Changed
+- **App Routing**: `frontend/src/App.tsx` now uses React Router with `/`, `/login`, `/callback` routes and `AuthProvider` wrapper.
+- **Frontend Tests**: Added 6 OIDC client tests (`frontend/src/tests/OIDCClient.test.ts`) covering PKCE generation, token storage, logout, and encoding utilities.
+
+### Test results
+- Backend: 125 tests passed
+- Frontend: 17 tests passed (4 test files), `npm run build` succeeds
+- Preflight: no missing files, source budget OK (129,409 bytes), no unfinished code markers
+
+Wall Time: 0.01 seconds
