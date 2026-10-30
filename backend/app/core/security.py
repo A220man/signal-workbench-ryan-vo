@@ -11,12 +11,19 @@ import time
 from typing import Dict, List, Optional
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import httpx
+from jose import jwt
+from jose.exceptions import JOSEError, ExpiredSignatureError
 from app.core.config import settings
 
 security_bearer = HTTPBearer(auto_error=False)
 
 # In-memory test token store for local protocol tests and mock OIDC verification
 _MOCK_OIDC_KEYS: Dict[str, dict] = {}
+
+# JWKS cache with TTL
+_JWKS_CACHE: Dict[str, tuple[Dict, float]] = {}
+_JWKS_TTL_SECONDS = 3600  # 1 hour
 
 
 class UserContext:
@@ -77,6 +84,104 @@ def decode_jwt_unverified(token: str) -> dict:
     return json.loads(decoded_bytes.decode("utf-8"))
 
 
+async def fetch_jwks(jwks_url: str) -> Dict:
+    """Fetch JWKS from the OIDC provider with caching."""
+    global _JWKS_CACHE
+    now = time.time()
+
+    # Check cache
+    if jwks_url in _JWKS_CACHE:
+        cached_jwks, cached_at = _JWKS_CACHE[jwks_url]
+        if now - cached_at < _JWKS_TTL_SECONDS:
+            return cached_jwks
+
+    # Fetch fresh JWKS
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(jwks_url)
+            resp.raise_for_status()
+            jwks = resp.json()
+    except Exception as e:
+        # If we have stale cache, use it; otherwise raise
+        if jwks_url in _JWKS_CACHE:
+            return _JWKS_CACHE[jwks_url][0]
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Unable to fetch JWKS from OIDC provider: {e}",
+        )
+
+    _JWKS_CACHE[jwks_url] = (jwks, now)
+    return jwks
+
+
+async def validate_jwt_signature(token: str) -> dict:
+    """Validate JWT signature using Keycloak JWKS.
+
+    Returns the verified claims if valid, raises HTTPException otherwise.
+    """
+    # Extract kid from token header
+    try:
+        header = jwt.get_unverified_header(token)
+    except JOSEError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid JWT header: {e}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    kid = header.get("kid")
+    if not kid:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="JWT header missing 'kid'",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Get JWKS URL from discovery endpoint
+    jwks_url = f"{settings.OIDC_ISSUER}/protocol/openid-connect/certs"
+
+    jwks = await fetch_jwks(jwks_url)
+
+    # Find matching key
+    key = None
+    for k in jwks.get("keys", []):
+        if k.get("kid") == kid:
+            key = k
+            break
+
+    if not key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"No matching key found for kid: {kid}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Validate token with the public key
+    try:
+        claims = jwt.decode(
+            token,
+            key,
+            algorithms=["RS256"],
+            audience=settings.OIDC_AUDIENCE,
+            issuer=settings.OIDC_ISSUER,
+            options={"verify_aud": True, "verify_iss": True, "verify_exp": True},
+        )
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="JWT token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except JOSEError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"JWT validation failed: {e}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return claims
+
+
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Security(security_bearer),
 ) -> UserContext:
@@ -101,7 +206,6 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Empty Bearer authentication token",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
     # In demo mode, accept synthetic demo tokens for test automation
@@ -115,32 +219,8 @@ async def get_current_user(
                 roles=[role_type, "viewer"] if role_type != "viewer" else ["viewer"],
             )
 
-    try:
-        claims = decode_jwt_unverified(token)
-    except Exception:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid JWT bearer token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Validate standard OIDC claims
-    exp = claims.get("exp")
-    if exp and exp < time.time():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="JWT token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    iss = claims.get("iss")
-    if settings.OIDC_ISSUER and iss and iss != settings.OIDC_ISSUER:
-        if not settings.DEMO_MODE:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Token issuer mismatch",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+    # Production mode: validate JWT signature via JWKS
+    claims = await validate_jwt_signature(token)
 
     sub = claims.get("sub", "unknown")
     username = claims.get("preferred_username", claims.get("name", sub))
