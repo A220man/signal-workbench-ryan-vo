@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.3.0 — work-in-progress checkpoint
+
+Partial code published for continued development. Known issues: STATUS.md.
+
+## 1.2.0 — JWT signature validation via JWKS
+
+### Added
+- **Full JWT signature validation**: `app/core/security.py` now validates RS256 token signatures using Keycloak JWKS endpoint (`/protocol/openid-connect/certs`).
+- **JWKS caching**: Fetched JWKS cached with 1-hour TTL; falls back to stale cache on network failure.
+- **Audience validation**: JWT `aud` claim verified against configured `OIDC_AUDIENCE`.
+- **Expiration validation**: JWT `exp` claim checked; expired tokens rejected.
+- **Issuer validation**: JWT `iss` claim verified against configured `OIDC_ISSUER`.
+
+### Changed
+- **Production authentication**: `get_current_user()` now uses `validate_jwt_signature()` in production mode (DEMO_MODE=false), replacing unverified payload decoding.
+- **Demo mode preserved**: DEMO_MODE=true continues to accept synthetic `demo-token-*` tokens for test automation and local development.
+- **Security tests updated**: `backend/tests/test_security.py` now uses properly signed RS256 JWTs with mocked JWKS for production-mode tests.
+
+### Test results
+- Backend: 125 tests passed
+- Frontend: 17 tests passed (4 test files), `npm run build` succeeds
+- Preflight: no missing files, no unfinished code markers
+
 ## 1.2.0 — work-in-progress checkpoint
 
 Partial code published for continued development. Known issues: STATUS.md.

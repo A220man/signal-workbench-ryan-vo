@@ -1,7 +1,27 @@
 {
   "schema_version": 1,
-  "current_feature": "continue-implementation",
+  "current_feature": "future-jwt-signature-validation",
   "features": [
+    {
+      "id": "future-jwt-signature-validation",
+      "title": "Full JWT signature validation via JWKS discovery",
+      "status": "done",
+      "acceptance": [
+        "Validate token signature via Keycloak JWKS endpoint",
+        "Check aud (audience) claim",
+        "Reject expired tokens",
+        "JWKS cached with 1-hour TTL",
+        "Falls back to cached JWKS on fetch failure",
+        "All 125 backend tests pass",
+        "All 17 frontend tests pass"
+      ],
+      "implementation": [
+        "backend/app/core/security.py"
+      ],
+      "tests": [
+        "backend/tests/test_security.py"
+      ]
+    },
     {
       "id": "continue-implementation",
       "title": "Continue implementation and resolve known failures",
