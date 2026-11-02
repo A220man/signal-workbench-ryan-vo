@@ -165,7 +165,7 @@ docker compose up --build
 
 - **Demo mode**: Binds to localhost, auto-authenticates as a demo user with full roles. Startup **refuses** demo mode when `ENVIRONMENT=production`.
 - **Production mode**: Requires a valid Bearer JWT with matching issuer and appropriate realm roles.
-- **JWT signature validation** is not yet implemented (planned: JWKS-based signature verification). Issuer and expiry claims are checked.
+- **JWT signature validation**: Implemented via Keycloak JWKS endpoint (`/protocol/openid-connect/certs`) with RS256 verification, 1-hour JWKS cache TTL, and fallback to stale cache on network failure. Audience (`aud`), issuer (`iss`), and expiration (`exp`) claims are validated.
 - **Roles**: `viewer` (read), `operator` (read + write), `admin` (read + write + audit log).
 - **Tokens** are never logged. LLM API keys are server-side only.
 - **CORS** is restricted to `http://127.0.0.1:3000` and `http://localhost:3000`.
@@ -196,7 +196,6 @@ cp .env.example .env
 
 - No GPU acceleration; all computation is CPU-based numpy.
 - The perplexity simulation reproduces the *numerical effect* of the activation bug, not actual model inference on real weights.
-- JWT signature verification is pending (issuer + expiry only).
 - The SPA OIDC PKCE login flow is a planned feature; the frontend currently relies on demo-mode auto-auth.
 
 ## License

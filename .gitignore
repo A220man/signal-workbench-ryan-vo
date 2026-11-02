@@ -32,3 +32,10 @@ npm-debug.log*
 .vscode/
 .idea/
 *.swp
+*.pyc
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
