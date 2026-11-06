@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import time
+import asyncio
 from typing import Dict, List, Optional
 from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -24,6 +25,9 @@ _MOCK_OIDC_KEYS: Dict[str, dict] = {}
 # JWKS cache with TTL
 _JWKS_CACHE: Dict[str, tuple[Dict, float]] = {}
 _JWKS_TTL_SECONDS = 3600  # 1 hour
+
+# Per-JWKS-URL locks to prevent cache stampede
+_JWKS_LOCKS: Dict[str, asyncio.Lock] = {}
 
 
 class UserContext:
@@ -86,32 +90,43 @@ def decode_jwt_unverified(token: str) -> dict:
 
 async def fetch_jwks(jwks_url: str) -> Dict:
     """Fetch JWKS from the OIDC provider with caching."""
-    global _JWKS_CACHE
+    global _JWKS_CACHE, _JWKS_LOCKS
     now = time.time()
 
-    # Check cache
+    # Check cache first (fast path)
     if jwks_url in _JWKS_CACHE:
         cached_jwks, cached_at = _JWKS_CACHE[jwks_url]
         if now - cached_at < _JWKS_TTL_SECONDS:
             return cached_jwks
 
-    # Fetch fresh JWKS
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(jwks_url)
-            resp.raise_for_status()
-            jwks = resp.json()
-    except Exception as e:
-        # If we have stale cache, use it; otherwise raise
-        if jwks_url in _JWKS_CACHE:
-            return _JWKS_CACHE[jwks_url][0]
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Unable to fetch JWKS from OIDC provider: {e}",
-        )
+    # Get or create lock for this JWKS URL
+    if jwks_url not in _JWKS_LOCKS:
+        _JWKS_LOCKS[jwks_url] = asyncio.Lock()
 
-    _JWKS_CACHE[jwks_url] = (jwks, now)
-    return jwks
+    async with _JWKS_LOCKS[jwks_url]:
+        # Double-check cache after acquiring lock
+        if jwks_url in _JWKS_CACHE:
+            cached_jwks, cached_at = _JWKS_CACHE[jwks_url]
+            if now - cached_at < _JWKS_TTL_SECONDS:
+                return cached_jwks
+
+        # Fetch fresh JWKS
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(jwks_url)
+                resp.raise_for_status()
+                jwks = resp.json()
+        except Exception as e:
+            # If we have stale cache, use it; otherwise raise
+            if jwks_url in _JWKS_CACHE:
+                return _JWKS_CACHE[jwks_url][0]
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Unable to fetch JWKS from OIDC provider: {e}",
+            )
+
+        _JWKS_CACHE[jwks_url] = (jwks, now)
+        return jwks
 
 
 async def validate_jwt_signature(token: str) -> dict:
