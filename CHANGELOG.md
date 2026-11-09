@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.0 — work-in-progress checkpoint
+
+Partial code published for continued development. Known issues: STATUS.md.
+
+## 1.5.0 — SPA OIDC PKCE nonce validation
+
+### Added
+- **Nonce validation**: `frontend/src/auth/oidc.ts` now generates a cryptographically random nonce during `initiateLogin()`, includes it in the authorization request, stores it in sessionStorage, and validates it against the ID token's `nonce` claim in `handleCallback()`. This completes the OIDC PKCE flow security requirements.
+
+### Changed
+- **OIDC PKCE Client**: Added `generateNonce()` function and `parseJwtClaims()` helper for ID token parsing without verification. Updated `initiateLogin()` to generate and send nonce. Updated `handleCallback()` to validate nonce from ID token. Updated `logout()` to clear nonce from sessionStorage.
+
+### Test results
+- Backend: 125 tests passed
+- Frontend: 17 tests passed (4 test files), `npm run build` succeeds
+- Preflight: no missing files, no unfinished code markers
+
 ## 1.5.0 — work-in-progress checkpoint
 
 Partial code published for continued development. Known issues: STATUS.md.

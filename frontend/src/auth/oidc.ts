@@ -86,11 +86,35 @@ function generateState(): string {
   return base64URLEncode(array);
 }
 
+/** Generate random nonce parameter. */
+export function generateNonce(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return base64URLEncode(array);
+}
+
+/** Parse JWT claims without verification (for nonce extraction from ID token). */
+function parseJwtClaims(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = parts[1];
+    const padding = payload.length % 4;
+    const padded = padding ? payload + "=".repeat(4 - padding) : payload;
+    const decoded = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
 /** Build authorization URL and redirect. */
 export async function initiateLogin(): Promise<void> {
   const discovery = await fetchDiscovery();
   const { codeChallenge, codeChallengeMethod } = await generateAndStorePKCE();
   const state = sessionStorage.getItem("pkce_state") ?? "";
+  const nonce = generateNonce();
+  sessionStorage.setItem("pkce_nonce", nonce);
 
   const params = new URLSearchParams({
     response_type: "code",
@@ -100,20 +124,23 @@ export async function initiateLogin(): Promise<void> {
     code_challenge: codeChallenge,
     code_challenge_method: codeChallengeMethod,
     state,
+    nonce,
   });
 
   window.location.href = `${discovery.authorization_endpoint}?${params.toString()}`;
 }
 
 
-/** Handle callback: exchange code for tokens, validate state, store tokens in memory. */
+/** Handle callback: exchange code for tokens, validate state + nonce, store tokens in memory. */
 export async function handleCallback(code: string, state: string): Promise<void> {
   const storedState = sessionStorage.getItem("pkce_state");
+  const storedNonce = sessionStorage.getItem("pkce_nonce");
   const verifier = sessionStorage.getItem("pkce_verifier");
 
   // Clear PKCE params from sessionStorage after use
   sessionStorage.removeItem("pkce_state");
   sessionStorage.removeItem("pkce_verifier");
+  sessionStorage.removeItem("pkce_nonce");
 
   if (!storedState || state !== storedState) {
     throw new Error("Invalid OAuth state parameter");
@@ -143,6 +170,16 @@ export async function handleCallback(code: string, state: string): Promise<void>
   }
 
   const tokens = (await resp.json()) as TokenResponse;
+
+  // Validate nonce from ID token if present
+  if (tokens.id_token && storedNonce) {
+    const claims = parseJwtClaims(tokens.id_token);
+    const idTokenNonce = claims?.nonce as string | undefined;
+    if (idTokenNonce !== storedNonce) {
+      throw new Error("Invalid nonce in ID token");
+    }
+  }
+
   storeTokens(tokens);
 }
 
@@ -203,6 +240,7 @@ export function logout(): void {
   _refreshToken = null;
   sessionStorage.removeItem("pkce_verifier");
   sessionStorage.removeItem("pkce_state");
+  sessionStorage.removeItem("pkce_nonce");
 }
 
 /** Check if user appears to be authenticated (has valid token in memory). */
