@@ -27,7 +27,7 @@ Tests: `backend/tests/test_security.py`
 
 ### spa-oidc-pkce-login — SPA OIDC PKCE login flow with bearer token management
 
-Status: planned
+Status: done
 
 Acceptance:
 - Authorization code + PKCE flow via Keycloak
@@ -41,4 +41,18 @@ Acceptance:
 Implementation: `frontend/src/auth/oidc.ts`, `frontend/src/auth/AuthContext.tsx`, `frontend/src/auth/LoginPage.tsx`, `frontend/src/auth/CallbackPage.tsx`, `frontend/src/App.tsx`, `frontend/src/api/client.ts`
 
 Tests: `frontend/src/tests/OIDCClient.test.ts`, `frontend/src/tests/ApiClient.test.ts`, `frontend/src/tests/Dashboard.test.tsx`, `frontend/src/tests/Models.test.tsx`
+
+### spa-token-refresh-on-401 — Automatic token refresh and retry on 401 responses
+
+Status: done
+
+Acceptance:
+- ApiClient uses getAccessToken() which refreshes expired tokens
+- On 401 response, clears cached token and retries request once with fresh token
+- All 17 frontend tests pass
+- npm run build succeeds
+
+Implementation: `frontend/src/api/client.ts`
+
+Tests: `frontend/src/tests/ApiClient.test.ts`
 

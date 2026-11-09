@@ -1,4 +1,4 @@
-import { getStoredAccessToken } from "../auth/oidc";
+import { getAccessToken } from "../auth/oidc";
 
 /** HTTP client for the Signal Workbench API, derived from backend routes. */
 import type {
@@ -23,6 +23,7 @@ export class ApiError extends Error {
   constructor(message: string, public status: number) {
     super(message);
     this.name = "ApiError";
+    this.status = status;
   }
 }
 
@@ -33,23 +34,30 @@ export class ApiClient {
     this.token = token;
   }
 
-  private getAuthToken(): string | null {
-    // Priority: explicit token set via setToken, then OIDC token from memory
+  private async getAuthToken(): Promise<string | null> {
+    // Priority: explicit token set via setToken, then OIDC token from memory (with refresh)
     if (this.token) return this.token;
-    return getStoredAccessToken();
+    return getAccessToken();
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  private async request<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...(init.headers as Record<string, string> | undefined),
     };
-    const token = this.getAuthToken();
+    const token = await this.getAuthToken();
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
 
     const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+
+    // Handle 401 by attempting token refresh and retrying once
+    if (response.status === 401 && retry) {
+      // Force token refresh on next request
+      this.token = null;
+      return this.request(path, init, false);
+    }
 
     if (!response.ok) {
       let detail = `HTTP ${response.status}`;

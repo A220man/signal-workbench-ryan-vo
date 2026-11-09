@@ -25,7 +25,7 @@
     {
       "id": "spa-oidc-pkce-login",
       "title": "SPA OIDC PKCE login flow with bearer token management",
-      "status": "planned",
+      "status": "done",
       "acceptance": [
         "Authorization code + PKCE flow via Keycloak",
         "Access token stored in memory only, never localStorage",
@@ -48,6 +48,23 @@
         "frontend/src/tests/ApiClient.test.ts",
         "frontend/src/tests/Dashboard.test.tsx",
         "frontend/src/tests/Models.test.tsx"
+      ]
+    },
+    {
+      "id": "spa-token-refresh-on-401",
+      "title": "Automatic token refresh and retry on 401 responses",
+      "status": "done",
+      "acceptance": [
+        "ApiClient uses getAccessToken() which refreshes expired tokens",
+        "On 401 response, clears cached token and retries request once with fresh token",
+        "All 17 frontend tests pass",
+        "npm run build succeeds"
+      ],
+      "implementation": [
+        "frontend/src/api/client.ts"
+      ],
+      "tests": [
+        "frontend/src/tests/ApiClient.test.ts"
       ]
     }
   ]
