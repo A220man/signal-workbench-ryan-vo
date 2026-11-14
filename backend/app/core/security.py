@@ -179,7 +179,7 @@ async def validate_jwt_signature(token: str) -> dict:
             algorithms=["RS256"],
             audience=settings.OIDC_AUDIENCE,
             issuer=settings.OIDC_ISSUER,
-            options={"verify_aud": True, "verify_iss": True, "verify_exp": True},
+            options={"verify_aud": True, "verify_iss": True, "verify_exp": True, "verify_nbf": True, "verify_iat": True},
         )
     except ExpiredSignatureError:
         raise HTTPException(
