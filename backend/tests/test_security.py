@@ -259,3 +259,47 @@ class TestSecurityHeaders:
         # This is a structural test - actual logging would be checked in integration
         assert settings.LLM_API_KEY is not None or settings.DEMO_MODE is True
         # The key point: LLM_API_KEY is only read server-side, never exposed in API responses
+def test_decode_jwt_unverified_invalid_format():
+    """decode_jwt_unverified raises ValueError for malformed JWT strings."""
+    from app.core.security import decode_jwt_unverified
+
+    # Empty string
+    try:
+        decode_jwt_unverified("")
+        assert False, "Should raise ValueError for empty string"
+    except ValueError:
+        pass
+
+    # Too few parts
+    try:
+        decode_jwt_unverified("abc")
+        assert False, "Should raise ValueError for 1 part"
+    except ValueError:
+        pass
+
+    try:
+        decode_jwt_unverified("abc.def")
+        assert False, "Should raise ValueError for 2 parts"
+    except ValueError:
+        pass
+
+    # Too many parts
+    try:
+        decode_jwt_unverified("a.b.c.d")
+        assert False, "Should raise ValueError for 4 parts"
+    except ValueError:
+        pass
+
+
+def test_decode_jwt_unverified_valid_payload():
+    """decode_jwt_unverified correctly decodes a valid JWT payload."""
+    from app.core.security import decode_jwt_unverified
+    import base64, json
+
+    # Construct a minimal valid JWT (header.payload.sig)
+    header_b64 = base64.urlsafe_b64encode(json.dumps({"alg": "RS256"}).encode()).rstrip(b"=").decode()
+    payload_b64 = base64.urlsafe_b64encode(json.dumps({"sub": "user-123", "role": "admin"}).encode()).rstrip(b"=").decode()
+    token = f"{header_b64}.{payload_b64}.fakesig"
+
+    result = decode_jwt_unverified(token)
+    assert result == {"sub": "user-123", "role": "admin"}
