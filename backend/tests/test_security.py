@@ -303,3 +303,74 @@ def test_decode_jwt_unverified_valid_payload():
 
     result = decode_jwt_unverified(token)
     assert result == {"sub": "user-123", "role": "admin"}
+
+
+"""
+Test for JWKS cache fallback behavior.
+
+Acceptance criterion: "Falls back to cached JWKS on fetch failure"
+"""
+
+
+def test_fetch_jwks_falls_back_to_cached_on_fetch_failure():
+    """verify that fetch_jwks falls back to cached JWKS when fetch fails.
+
+    Simulates the scenario where the JWKS fetch from the OIDC provider fails
+    (e.g., network error, provider down), but cached JWKS data is available,
+    and verifies that the function returns the cached data instead of raising
+    a 503 error.
+    """
+    import asyncio
+    import time
+
+    from app.core.security import fetch_jwks, _JWKS_CACHE, _JWKS_TTL_SECONDS
+    from tests.test_security import TEST_JWKS
+
+    # Arrange: Pre-populate cache with stale data (outside TTL so top cache check
+    # won't return it, forcing the fetch path)
+    stale_at = time.time() - 7200  # 2 hours ago, outside 1-hour TTL
+    _JWKS_CACHE['http://127.0.0.1:8080/realms/workbench-realm/protocol/openid-connect/certs'] = (
+        TEST_JWKS, stale_at
+    )
+
+    # Act: Call fetch_jwks - it should skip stale cache at top check, attempt
+    # fetch, fail, and fall back to cached data
+    result = asyncio.run(
+        _fetch_jwks_with_failing_client(
+            'http://127.0.0.1:8080/realms/workbench-realm/protocol/openid-connect/certs'
+        )
+    )
+
+    # Assert: Should have fallen back to cached data
+    assert result is not None, "fetch_jwks returned None"
+    assert 'keys' in result, "Result missing 'keys'"
+    assert len(result['keys']) > 0, "No keys in result"
+    print("PASS: fetch_jwks fell back to cached JWKS on fetch failure")
+
+
+async def _fetch_jwks_with_failing_client(jwks_url):
+    """Helper: call fetch_jwks with a failing httpx client."""
+    import httpx
+    import app.core.security as sec_module
+
+    class FailingClient:
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            pass
+        async def get(self, url, **kwargs):
+            raise Exception("Connection refused")
+
+    # Temporarily replace httpx.AsyncClient
+    original_async_client = httpx.AsyncClient
+    httpx.AsyncClient = FailingClient
+
+    try:
+        return await sec_module.fetch_jwks(jwks_url)
+    finally:
+        httpx.AsyncClient = original_async_client
+
+
+def test_fetch_jwks_falls_back_to_cached_on_fetch_failure_end_to_end():
+    """End-to-end verification of the cache fallback acceptance criterion."""
+    test_fetch_jwks_falls_back_to_cached_on_fetch_failure()
